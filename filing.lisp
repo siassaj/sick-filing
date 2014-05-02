@@ -1,11 +1,31 @@
 #!/usr/bin/sbcl --script
-(load ".sbclrc")
+(load "~/.sbclrc")
 
 (require :quicklisp)
 
 (ql:quickload "cl-charms")
 
+(defclass query ()
+  ((search-string :initform ""
+                  :reader search-string)
+   (changedp :initform nil
+             :reader changedp)))
+
+(defgeneric update-search-string (query new-string)
+  (:documentation "Update the 'search-string' on a query object"))
+
+(defmethod update-search-string ((query-instance query) new-string)
+  (let ((previous (slot-value query-instance 'search-string)))
+    (unless (string= previous new-string)
+      (setf (slot-value query-instance 'search-string) new-string)
+      (setf (slot-value query-instance 'changedp) t))))
+
 (defparameter *arguments* (cdr *posix-argv*))
+(defparameter *delimiters* '(" " "/" "\\"))
+(defparameter *query-string* "")
+(defparameter *results-list* '("some/result/one" "some/result/two"))
+
+(defparameter *cursor-y* 0)
 
 (defun concat-list (list &optional spacer)
   (format nil (concatenate 'string "~{~a~^" spacer "~}") list))
@@ -15,105 +35,108 @@
     (keep (subseq string 0 (- keep 1)))
     (cut (subseq string 0 (- (length string) cut)))))
 
-;; (defun write-text (win text &key x y center)
-;;   (if center
-;;       (setf x (truncate (/ (- cl-charms:*COLS* (length text)) 2)))
-;;     (setf x (- x 1)))
-;;   (map nil
-;;        #'(lambda (character)
-;;            (cl-charms:mvwaddch win y x (char-code character))
-;;            (setf x (+ 1 x)))
-;;        text))
+(defun insert-into (type string sub pos)
+  (let ((end (length string)))
+    (concatenate type (subseq string 0 pos) sub (subseq string pos end))))
 
-;; (defun get-input-string (win &key y x)
-;;   (let ((mystr))
-;;     (cl-charms:wmove win y x)
-;;     (setq mystr (cffi:with-foreign-pointer-as-string (str 1024 :encoding :ascii)
-;;                   (cl-charms:wgetstr win str)))
-;;     (cl-charms:wmove win y x)
-;;     mystr))
+(defun kill-string-from (pos string)
+  (subseq string 0 pos))
 
-;; (defun wbackspace2 (win)
-;;   (let ((curx (cl-charms:getcurx win))
-;;         (cury (cl-charms:getcury win)))
-;;     (unless (= curx 0)
-;;       (cl-charms:wmove win cury (- curx 1))
-;;       (cl-charms:wdelch win))))
+(defun kill-query-string-from (pos query-object)
+  (let ((string (search-string query-object)))
+    (update-search-string query-object (kill-string-from pos string))))
 
-;; (defun wbackspace (win)
-;;   (let ((curx (cl-charms:getcurx win))
-;;         (cury (cl-charms:getcury win)))
-;;     (unless (= curx 0)
-;;       (cl-charms:wmove win cury (- curx 2))
-;;       (cl-charms:waddch ))))
+(defun position-of-nearest-delim-between-0-and-point (pos query-object)
+  (let* ((string (search-string query-object))
+        (subsequence (subseq string 0 pos)))
+    (apply #'max (mapcar (lambda (delim)
+                           (or (position delim subsequence :from-end t :test #'string=)
+                               0))
+                         *delimiters*))))
 
-;; (defun init-filing-window ()
-;;   (let ((win (make-window 8 cl-charms:*cols* 0 0)))
-;;         (write-text win "Filing system fuzzy search awesome!" :y 1 :center t)
-;;         (write-text win "cmd: " :y 2 :x 3 :center nil)
-;;         win))
 
-;;         ;; (setq result  (get-input-string win :y 2 :x 7))
-;;         ;; ;; (write-text win result :y 5 :x 3 :center nil)
-;;         ;; (cl-charms:wrefresh win)
-;;         ;; result
+(defun position-of-nearest-delim-between-point-and-end (pos query-object)
+  (let ((string (search-string query-object)))
+    (if  (< pos (length string))
+         (let ((subsequence (subseq string (+ 1 pos))))
+           (+ 1
+              pos
+              (apply #'min
+                     (mapcar (lambda (delim)
+                               (or (position delim subsequence :test #'string=)
+                                   (length subsequence)))
+                             *delimiters*))))
+         pos)))
 
-;; (defun grab-character (win)
-;;   (cl-charms:noecho)
-;;   (let ((charcode (cl-charms:wgetch win)))
-;;     (if (or (= charcode 8)
-;;             (= charcode 127))
-;;         (wbackspace win)
-;;       (cl-charms:waddch win charcode))
-;;     (cl-charms:echo)
-;;     (code-char charcode)))
 
-;; (defun main-work-loop (win)
-;;   (let ((input-string))
-;;     (loop while t do (progn
-;;                        (let ((character (grab-character win)))
-;;                          (if (or (= character 8)
-;;                                  (= character 127))
-;;                              (string-trim)
-;;                            (append input-string (string (code-char character)))))
-;;                        (cl-charms:wrefresh win))
-;;        finally (format t "~%~s~%" input-string))))
 
-(defparameter *query-string* "")
-(defparameter *results-list* '("some/result/one" "some/result/two"))
-(defparameter *screen* (cl-charms:initscr))
+(defun move-cur-y (pos)
+  (setf *cursor-y* pos))
 
-(defun initialize ()
-  ;; (cl-charms:start_color)
-  )
+(defun move-backwards-to-delim (pos query-object)
+  (move-cur-y (position-of-nearest-delim-between-0-and-point pos query-object)))
 
-(defun make-main-window ()
-  (cl-charms:newwin cl-charms:*LINES* cl-charms:*COLS* 0 0))
+(defun move-forwards-to-delim (pos query-object)
+  (move-cur-y (position-of-nearest-delim-between-point-and-end pos query-object)))
+
+(defun kill-query-string-word-backwards (pos query-object)
+  (let ((point (position-of-nearest-delim-between-0-and-point pos query-object))
+        (string (search-string query-object)))
+    (update-search-string query-object
+                          (concatenate 'string
+                            (subseq string 0 point)
+                            (subseq string pos)))
+    (move-cur-y point)))
+
+(defun kill-query-string-character-from (pos query-object)
+  (let ((string (search-string query-object)))
+    (unless (= pos (length string))
+      (update-search-string query-object
+                            (concatenate 'string
+                              (subseq string 0 pos)
+                              (subseq string (+ pos 1) (length string)))))))
+
+
+(defun cur-y ()
+  *cursor-y*)
+
+(defun inc-cur-y (max &optional num)
+  (if (< *cursor-y* max)
+      (setf *cursor-y* (+ *cursor-y* (or num 1)))))
+
+(defun dec-cur-y (&optional num)
+  (if (>= (- *cursor-y* (max 1 (or num 0))) 0)
+      (setf *cursor-y* (- *cursor-y* (or num 1)))))
+
+
+(defun move-cursor (win)
+  (cl-charms:wmove win 0 (cur-y)))
 
 (defun make-query-window ()
   (let ((win (cl-charms:newwin 1 (- cl-charms:*COLS* 15) 2 10)))
-    ;; (cl-charms:init_pair 1 cl-charms:COLOR_BLUE cl-charms:COLOR_MAGENTA)
-    ;; (cl-charms:wbkgd win (cl-charms:color_pair 1))
     win))
 
 (defun make-results-window ()
-  (cl-charms:newwin (- cl-charms:*LINES* 5) cl-charms:*COLS* 5 0))
+  (let ((win (cl-charms:newwin (- cl-charms:*LINES* 4) cl-charms:*COLS* 4 0)))
+    (cl-charms:scrollok win (cffi:convert-to-foreign t :boolean))
+    win))
 
 (defun draw-border (win)
   (cl-charms:box win (char-code (char "#" 0)) (char-code (char "#" 0))))
 
 (defun write-headline (win)
-  (cl-charms:wmove win 1 3)
-  (cl-charms:waddstr win "Filing system fuzzy search awesome!"))
+  (let ((title "Filing system fuzzy search awesome!"))
+    (cl-charms:wmove win 1 (floor  (/ (- cl-charms:*COLS* (length title)) 2)))
+    (cl-charms:waddstr win title)))
 
 (defun write-cmd-prompt (win)
   (cl-charms:wmove win 2 3)
   (cl-charms:waddstr win "query: "))
 
-(defun write-query-string (win)
-  (when (> (length *query-string*) 0)
+(defun write-query-string (win string)
+  (when (> (length string) 0)
     (cl-charms:wmove win 0 0)
-    (cl-charms:waddstr win *query-string*)))
+    (cl-charms:waddstr win string)))
 
 (defun clear-windows (&rest windows)
   (loop
@@ -127,21 +150,26 @@
          (cl-charms:wmove win (+ i 1) 2)
          (cl-charms:waddstr win (elt *results-list* i)))))
 
-(defun process-query ()
-  (setf *results-list*
-        (stable-sort (remove-duplicates (concatenate 'list *results-list* `(,*query-string*))
-                                        :test #'string=)
-                     #'string<)))
+(defun process-query (query-object)
+  (setf *results-list* (list (search-string query-object))))
 
+(defun next-match () nil)
 
-(defun draw-everything (main-window query-window results-window)
+(defun previous-match () nil)
+
+(defun auto-fill-query-string () nil)
+
+(defun select-match () nil)
+
+(defun draw-everything (query-object main-window query-window results-window)
   (clear-windows results-window query-window)
   (draw-border main-window)
   (draw-border results-window)
   (write-headline main-window)
   (write-cmd-prompt main-window)
-  (write-query-string query-window)
+  (write-query-string query-window (search-string query-object))
   (write-results results-window)
+  (move-cursor query-window)
   (cl-charms:wrefresh main-window)
   (cl-charms:wrefresh results-window)
   (cl-charms:wrefresh query-window))
@@ -152,32 +180,67 @@
     (cl-charms:echo)
     (code-char charcode)))
 
-(defun use-input-char (input)
-  (cond
-    ((or (char= input #\Backspace)
-         (char= input #\Rubout))
-     (if (> (length *query-string*) 0)
-         (setf *query-string* (string-cut-end *query-string* :cut 1 ))))
+(defun use-input-char (input query-object)
+  (let ((previous-search (search-string query-object)))
+    (cond
+      ((or (char= input #\Backspace) (char= input #\Rubout))
+       (if (> (length (search-string query-object)) 0)
+           (progn
+             (update-search-string query-object (string-cut-end previous-search :cut 1 ))
+             (dec-cur-y))))
 
-    ((or (char= input #\Newline)
-         (char= input #\Return))
-     nil)
+      ((or (char= input #\Newline) (char= input #\Return)) (select-match))
 
-    (t (setf *query-string* (concatenate 'string *query-string* (string input))))))
+      ((char= input #\Esc)
+       (let ((unput (grab-input-char)))
+         (cond
+           ;; M-f
+           ((char= unput #\f) (move-forwards-to-delim (cur-y) query-object))
+           ;; M-b
+           ((char= unput #\b) (move-backwards-to-delim (cur-y) query-object)))))
+      ;; C-a
+      ((char= input #\Soh) (move-cur-y 0))
+      ;; C-k
+      ((char= input #\Vt) (kill-query-string-from (cur-y) query-object))
+      ;; C-d
+      ((char= input #\Eot) (kill-query-string-character-from (cur-y) query-object))
+      ;; C-w
+      ((char= input #\Etb) (kill-query-string-word-backwards (cur-y) query-object))
+      ;; Tab
+      ((char= input #\Tab) (auto-fill-query-string))
+      ;; C-s
+      ((char= input #\Dc3) (next-match))
+      ;; C-r
+      ((char= input #\Dc2) (previous-match))
+      ;; C-f
+      ((char= input #\Ack) (inc-cur-y (length (search-string query-object))))
+      ;; C-b
+      ((char= input #\Stx) (dec-cur-y))
 
-(defun poll-for-input ()
-  (use-input-char (grab-input-char)))
+      (t
+       (progn
+         (update-search-string query-object (insert-into 'string previous-search (string input) (cur-y)))
+         (inc-cur-y (length (search-string query-object))
+                    (length (string input))))))))
+
+(defun poll-for-input (query-object)
+  (use-input-char (grab-input-char) query-object))
+
+(defun draw-everything-emacs (&rest rest) nil)
+(defun poll-for-input-emacs (query-object)
+  (use-input-char #\a query-object))
 
 (defun main ()
-  (initialize)
-  (let ((main-window (make-main-window))
+  (let ((screen (cl-charms:initscr))
         (query-window (make-query-window))
-        (results-window (make-results-window)))
+        (results-window (make-results-window))
+        (query-object (make-instance 'query)))
     (loop while t do (progn
-                       (draw-everything main-window query-window results-window)
-                       (poll-for-input)
-                       (process-query))
+                       (draw-everything query-object screen query-window results-window)
+                       (poll-for-input query-object)
+                       (process-query query-object))
        finally (cl-charms:endwin))))
+
 
 
 (handler-case
@@ -185,5 +248,5 @@
   (condition (se)
     (progn
       (cl-charms:endwin)
-      (format t "Error is ~a~%" se))))
-(remove-duplicates `( "" "" "a" "a" "z") :test #'string=)
+      (format t "~s" se)
+      )))
