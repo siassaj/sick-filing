@@ -2,8 +2,22 @@
 (load "~/.sbclrc")
 
 (require :quicklisp)
-
 (ql:quickload "cl-charms")
+
+(load "~/.emacs.d/vendor/slime/swank-loader")
+(swank-loader:init)
+
+;; (require :swank)
+
+(defvar *emacs-port* 4005)
+(defparameter *arguments* (cdr *posix-argv*))
+(defparameter *delimiters* '(" " "/" "\\"))
+
+(defun start-swank ()
+  (setf swank:*configure-emacs-indentation* nil
+        swank::*enable-event-history* nil
+        swank:*log-events* t)
+  (swank:create-server :port *emacs-port* :dont-close t))
 
 (defclass query ()
   ((search-string :initform ""
@@ -20,9 +34,6 @@
       (setf (slot-value query-instance 'search-string) new-string)
       (setf (slot-value query-instance 'changedp) t))))
 
-(defparameter *arguments* (cdr *posix-argv*))
-(defparameter *delimiters* '(" " "/" "\\"))
-(defparameter *query-string* "")
 (defparameter *results-list* '("some/result/one" "some/result/two"))
 
 (defparameter *cursor-y* 0)
@@ -54,7 +65,6 @@
                                0))
                          *delimiters*))))
 
-
 (defun position-of-nearest-delim-between-point-and-end (pos query-object)
   (let ((string (search-string query-object)))
     (if  (< pos (length string))
@@ -67,8 +77,6 @@
                                    (length subsequence)))
                              *delimiters*))))
          pos)))
-
-
 
 (defun move-cur-y (pos)
   (setf *cursor-y* pos))
@@ -151,8 +159,11 @@
          (cl-charms:waddstr win (elt *results-list* i)))))
 
 (defun process-query (query-object)
-  (setf *results-list* (list (search-string query-object))))
+  (when (changedp query-object)
+    (setf *results-list* (list (search-string query-object)))
+    (find-matches (search-string query-object))))
 
+(defun find-matches (search-string) nil)
 (defun next-match () nil)
 
 (defun previous-match () nil)
@@ -162,7 +173,7 @@
 (defun select-match () nil)
 
 (defun draw-everything (query-object main-window query-window results-window)
-  (clear-windows results-window query-window)
+  (clear-windows main-window results-window query-window)
   (draw-border main-window)
   (draw-border results-window)
   (write-headline main-window)
@@ -200,12 +211,16 @@
            ((char= unput #\b) (move-backwards-to-delim (cur-y) query-object)))))
       ;; C-a
       ((char= input #\Soh) (move-cur-y 0))
+      ;; C-e
+      ((char= input #\Enq) (move-cur-y (length (search-string query-object))))
       ;; C-k
       ((char= input #\Vt) (kill-query-string-from (cur-y) query-object))
       ;; C-d
       ((char= input #\Eot) (kill-query-string-character-from (cur-y) query-object))
       ;; C-w
       ((char= input #\Etb) (kill-query-string-word-backwards (cur-y) query-object))
+      ;; C-l
+      ((char= input #\Page) (cl-charms:wclear *screen*))
       ;; Tab
       ((char= input #\Tab) (auto-fill-query-string))
       ;; C-s
@@ -216,10 +231,15 @@
       ((char= input #\Ack) (inc-cur-y (length (search-string query-object))))
       ;; C-b
       ((char= input #\Stx) (dec-cur-y))
-
+      ;; C-q
+      ((char= input #\Dc1)
+       (cl-charms:endwin)
+       (quit))
+      ;; Finally
       (t
        (progn
-         (update-search-string query-object (insert-into 'string previous-search (string input) (cur-y)))
+         (update-search-string query-object (insert-into 'string previous-search (format nil "~s" swank:*global-debugger*) (cur-y)))
+         ;; (update-search-string query-object (insert-into 'string previous-search (format nil "~a" input) (cur-y)))
          (inc-cur-y (length (search-string query-object))
                     (length (string input))))))))
 
@@ -231,22 +251,29 @@
   (use-input-char #\a query-object))
 
 (defun main ()
-  (let ((screen (cl-charms:initscr))
-        (query-window (make-query-window))
-        (results-window (make-results-window))
-        (query-object (make-instance 'query)))
+
+  (defparameter *screen* (cl-charms:initscr))
+  (defparameter *query-window* (make-query-window))
+  (defparameter *results-window* (make-results-window))
+  (defparameter *query-object* (make-instance 'query))
+
+  (let ((screen *screen*)
+        (query-window *query-window*)
+        (results-window *results-window*)
+        (query-object *query-object*))
     (loop while t do (progn
                        (draw-everything query-object screen query-window results-window)
                        (poll-for-input query-object)
                        (process-query query-object))
        finally (cl-charms:endwin))))
 
+(let ((swank::*loopback-interface* "127.0.0.1") (port 4006)) (swank:create-server :port port ))
+(setf sb-ext:*invoke-debugger-hook* (or *debugger-hook*))
+(main)
 
-
-(handler-case
-    (main)
-  (condition (se)
-    (progn
-      (cl-charms:endwin)
-      (format t "~s" se)
-      )))
+;; (handler-case
+;;     (main)
+;;   (condition (se)
+;;     (progn
+;;       (cl-charms:endwin)
+;;       (start-swank))))
