@@ -49,10 +49,13 @@ One or more matcher functions may be used, and a correlation is given to each ma
          (full-regex (format nil ".*~a.*" query))
          (fuzzy-regex "")
          matches)
-     (loop for character across query
-        do (setf fuzzy-regex (concatenate 'string fuzzy-regex (format nil ".*~a" character))))
      (setf fuzzy-regex (concatenate 'string fuzzy-regex ".*"))
-
+     (loop for character across query
+        counting t into counter
+        do (setf fuzzy-regex (concatenate 'string fuzzy-regex
+                                          (if (= counter (length query))
+                                              (format nil "~a" character)
+                                              (format nil "~a.*?" character)))))
    (loop for item in items
       do (cond
            ((cl-ppcre:scan prefix-regex (relative-path item))
@@ -84,7 +87,7 @@ One or more matcher functions may be used, and a correlation is given to each ma
 
 (defun match-directory (dir query-terms)
   "Match all the contents of a given directory and return list of matches and new directories to go down"
-  (let ((raw-paths (cl-fad:list-directory dir))
+  (let ((raw-paths (cl-fad:list-directory dir :follow-symlinks nil))
          processed-items matches directories)
 
     (setf processed-items (build-items dir raw-paths))
@@ -145,6 +148,8 @@ NUM-DIRS is the number of directories left to search at the current tree depth"
           (setf new-directory-stack nil)
           (incf current-depth))
         (values matches dir return-depth dir-stack-length)))))
+
+
 
 
 
