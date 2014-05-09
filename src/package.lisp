@@ -1,2 +1,3 @@
-(cl:defpackage :sick-filing
-  (:use :common-lisp :cl-charms))
+(cl:defpackage sick-filing
+  (:use :cl :asdf)
+  (:export :main))
