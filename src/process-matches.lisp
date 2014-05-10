@@ -1,19 +1,5 @@
 (in-package :sick-filing)
 
-(defclass item ()
-  ((path :initarg :path
-         :accessor path
-         :documentation "The absolute path of the item of type pathname")
-   (relative-path :initarg :relative-path
-                  :initform ""
-                  :accessor relative-path
-                  :documentation "The relative path of the item of type string")
-   (correlation :initarg :correlation
-                :initform 0
-                :accessor correlation
-                :documentation "How correlated the match is to the original query, low numbers = more correlated"))
-  (:documentation "The object spawned for each item found in the filesystem"))
-
 (defun dir-path-start-end (query-string)
   "Return the expanded directory path from query-string."
   (let ((regex "^[\/(\~\/)](.*[\/])?")) ; match / or ~/,  then any chars sans space and finally / 0 or 1 times
@@ -70,8 +56,11 @@ One or more matcher functions may be used, and a correlation is given to each ma
 (defun collate-matching-items (query-terms items)
   "Call match on each query-term and the list of items, collecting the results into a list"
   (let ((matches #()))
-    (loop for term in query-terms
-       do (setf matches (concatenate 'vector (match-items term items) matches)))
+    (if query-terms
+        (loop for term in query-terms
+           do (setf matches (concatenate 'vector (match-items term items) matches)))
+      (setf matches  (concatenate 'vector items matches)))
+
     (remove-duplicates matches)))
 
 (defun build-items (dir raw-paths)

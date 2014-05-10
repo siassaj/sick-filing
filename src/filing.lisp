@@ -1,16 +1,9 @@
 (in-package :sick-filing)
 
 (defparameter *delimiters* '(" " "/" "\\"))
-(defparameter *results-list* nil)
 
-(defclass query ()
-  ((search-string :initform ""
-                  :reader search-string)
-   (changedp :initform nil
-             :reader changedp)))
-
-;; (defgeneric update-search-string (query new-string)
-;;   (:documentation "Update the 'search-string' on a query object"))
+(defgeneric update-search-string (query new-string)
+  (:documentation "Update the 'search-string' on a query object"))
 
 (defmethod update-search-string ((query-instance query) new-string)
   (let ((previous (slot-value query-instance 'search-string)))
@@ -18,26 +11,26 @@
       (setf (slot-value query-instance 'search-string) new-string)
       (setf (slot-value query-instance 'changedp) t))))
 
-(defclass results ()
-  ((result-list :accessor result-list)
-   (index :accessor index)))
+(defgeneric rotate-left (object))
 
-(defmethod current-result ((result-instance))
-  (nth (index result-instance) (result-list result-instance)))
+(defgeneric rotate-right (object))
 
-(defmethod next-result ((result-instance result))
-  (let ((index (+ (index result-instance) 1)))
-    (unless (> index (length (result-list result-instance)))
-      (setf (index result-instance) index)
-      (nth index (result-list result-instance)))))
+(defmethod rotate-left ((results-instance results))
+  (let* ((list (results-list results-instance))
+        (first (car list)))
+    (setf (results-list results-instance) (concatenate 'list (cdr list) (list first)))))
 
-(defmethod previous-result ((result-instance result))
-  (let ((index (- (index result-instance) 1)))
-    (unless (< index 0)
-      (setf (index result-instance) index)
-      (nth index (result-list result-instance)))))
+(defmethod rotate-right ((results-instance results))
+  (let* ((list (results-list results-instance))
+         (last (last list))
+         (rest (subseq list 0 (- (length list) 1))))
+    (setf (results-list results-instance) (concatenate 'list last rest))))
 
+(defun next-match (results-instance)
+  (rotate-left results-instance))
 
+(defun previous-match (results-instance)
+  (rotate-right results-instance))
 
 (defun kill-query-string-from (pos query-object)
   (let ((string (search-string query-object)))
@@ -88,13 +81,17 @@
                               (subseq string 0 pos)
                               (subseq string (+ pos 1) (length string)))))))
 
-(defun process-query (query-object)
+(defun process-query (query-object results-instance)
   (when (changedp query-object)
-    (setf *results-list* (list (search-string query-object)))
-    (find-matches (search-string query-object))))
+    (setf (slot-value query-object 'changedp) nil)
+    (multiple-value-bind (matches dir current-depth num-dirs) (do-query (search-string query-object) 2)
+      (setf (results-list results-instance)
+            (loop for match across matches
+               collect (relative-path match))))))
 
-(defun poll-for-input (query-object)
-  (use-input-char (grab-input-char) query-object))
+
+(defun poll-for-input (results-instance query-object)
+  (use-input-char (grab-input-char) results-instance query-object))
 
 (defun find-matches (search-string) nil)
 
@@ -106,7 +103,7 @@
 
 (defun select-match () nil)
 
-(defun use-input-char (input query-object)
+(defun use-input-char (input results-instance query-object)
   (let ((previous-search (search-string query-object)))
     (cond
       ((or (char= input #\Backspace) (char= input #\Rubout))
@@ -144,41 +141,48 @@
       ((char= input #\Dc1)
        (clean-up-and-quit))
       ;; C-s
-      ((char= input #\Dc3) (next-match))
+      ((char= input #\Dc3) (next-match results-instance))
       ;; C-r
-      ((char= input #\Dc2) (previous-match))
+      ((char= input #\Dc2) (previous-match results-instance))
       ;; Tab
       ((char= input #\Tab) (auto-fill-query-string))
       ;; Finally
       (t
        (progn
-         ;; (update-search-string query-object (insert-into 'string previous-search (format nil "~s" input) (cur-y)))
          (update-search-string query-object (insert-into 'string previous-search (format nil "~a" input) (cur-y)))
          (inc-cur-y (length (search-string query-object))
-                    (length (string input)))
-         (process-query query-object))))))
+                    (length (string input))))))))
 
 (defun main-1 (argv)
-  (let ((swank::*loopback-interface* "127.0.0.1") (port 4006))
-    (swank-loader:init)
-    (swank:create-server :port port ))
+  ;; (let ((swank::*loopback-interface* "127.0.0.1") (port 4005))
+  ;;   (swank-loader:init)
+  ;;   (swank:create-server :port port ))
 
   (defparameter *screen* (cl-charms:initscr))
   (defparameter *query-window* (make-query-window))
   (defparameter *results-window* (make-results-window))
   (defparameter *query-object* (make-instance 'query))
+  (defparameter *results-instance* (make-instance 'results))
 
   (let ((screen *screen*)
         (query-window *query-window*)
         (results-window *results-window*)
-        (query-object *query-object*))
+        (query-object *query-object*)
+        (results-instance *results-instance*))
+
     (loop while t do (progn
-                       (draw-everything query-object screen query-window results-window)
-                       (poll-for-input query-object))
+                       (draw-everything results-instance query-object screen query-window results-window)
+                       (poll-for-input results-instance query-object)
+                       (process-query query-object results-instance))
        finally (cl-charms:endwin))))
 
+;; (defun main (argv)
+;;   (handler-case (main-1 argv)
+;;     (sb-sys:interactive-interrupt ()
+;;       (clean-up-and-quit))))
 
 (defun main (argv)
   (handler-case (main-1 argv)
-    (sb-sys:interactive-interrupt ()
-      (clean-up-and-quit))))
+    (condition (se)
+      (cl-charms:endwin)
+      (format t "~s~%" se))))

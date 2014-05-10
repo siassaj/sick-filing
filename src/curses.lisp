@@ -14,8 +14,8 @@
 (defun draw-border (win)
   (cl-charms:box win (char-code (char "#" 0)) (char-code (char "#" 0))))
 
-(defun write-headline (win)
-  (let ((title "Filing system fuzzy search awesome!"))
+(defun write-headline (win &optional string query-string)
+  (let ((title  (concatenate 'string  string  " - Filing system fuzzy search awesome! - " (write-to-string (length query-string)))))
     (cl-charms:wmove win 1 (floor  (/ (- cl-charms:*COLS* (length title)) 2)))
     (cl-charms:waddstr win title)))
 
@@ -33,21 +33,22 @@
      for win in windows
      do (cl-charms:werase win)))
 
-(defun write-results (win)
- (loop
-    for i from 0 to (- (length *results-list*) 1)
-    do (progn
-         (cl-charms:wmove win (+ i 1) 2)
-         (cl-charms:waddstr win (elt *results-list* i)))))
+(defun write-results (win results-instance)
+  (let ((list (results-list results-instance)))
+    (loop
+       for i from 0 to (- (length list) 1)
+       do (progn
+            (cl-charms:wmove win (+ i 1) 2)
+            (cl-charms:waddstr win (elt list i))))))
 
-(defun draw-everything (query-object main-window query-window results-window)
+(defun draw-everything (results-instance query-object main-window query-window results-window)
   (clear-windows main-window results-window query-window)
   (draw-border main-window)
   (draw-border results-window)
-  (write-headline main-window)
+  (write-headline main-window (namestring (parse-dir-path (search-string query-object))) (search-string query-object))
   (write-cmd-prompt main-window)
   (write-query-string query-window (search-string query-object))
-  (write-results results-window)
+  (write-results results-window results-instance)
   (move-cursor query-window)
   (cl-charms:wrefresh main-window)
   (cl-charms:wrefresh results-window)

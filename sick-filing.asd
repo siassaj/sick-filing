@@ -12,7 +12,7 @@
   :serial t
   :components
   ((:module "src"
-            :components (
+            :components ((:file "classes")
                          (:file "helpers")
                          (:file "curses")
                          (:file "process-matches")
