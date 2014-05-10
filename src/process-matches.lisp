@@ -147,10 +147,6 @@ NUM-DIRS is the number of directories left to search at the current tree depth"
           (incf current-depth))
         (values matches dir return-depth dir-stack-length)))))
 
-
-
-
-
 (defun sort-matches (matches)
   "Sort matches by their correlation primarily string value secondarily"
   (stable-sort matches #'item>))
