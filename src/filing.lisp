@@ -38,7 +38,7 @@
 
 (defun position-of-nearest-delim-between-0-and-point (pos query-object)
   (let* ((string (search-string query-object))
-        (subsequence (subseq string 0 pos)))
+        (subsequence (subseq string 0 (max (- pos 1) 0))))
     (apply #'max (mapcar (lambda (delim)
                            (or (position delim subsequence :from-end t :test #'string=)
                                0))
@@ -65,7 +65,7 @@
   (move-cur-y (position-of-nearest-delim-between-point-and-end pos query-object)))
 
 (defun kill-query-string-word-backwards (pos query-object)
-  (let ((point (position-of-nearest-delim-between-0-and-point pos query-object))
+  (let ((point (+ 1  (position-of-nearest-delim-between-0-and-point pos query-object)))
         (string (search-string query-object)))
     (update-search-string query-object
                           (concatenate 'string
@@ -86,22 +86,30 @@
     (setf (slot-value query-object 'changedp) nil)
     (multiple-value-bind (matches dir current-depth num-dirs) (do-query (search-string query-object) 2)
       (setf (results-list results-instance)
-            (loop for match across matches
-               collect (relative-path match))))))
+            (sort-matches matches)))))
 
 
 (defun poll-for-input (results-instance query-object)
   (use-input-char (grab-input-char) results-instance query-object))
 
-(defun find-matches (search-string) nil)
+(defun auto-fill-query-string (query-object results-instance)
+  (let ((list (results-list results-instance))
+        item
+        pathname)
+    (when (>  (length list) 0)
+      (setf item (nth 0 list))
+      (setf pathname (path item))
 
-(defun next-match () nil)
+      (when (cl-fad:directory-pathname-p pathname)
+        (update-search-string query-object (namestring pathname))
+        (set-cur-y (length (namestring pathname))))
 
-(defun previous-match () nil)
+      (unless (string=
+               (search-string query-object)
+               (namestring pathname))
+        (next-match results-instance)))))
 
-(defun auto-fill-query-string () nil)
-
-(defun select-match () nil)
+(defun select-match (results-instance) nil)
 
 (defun use-input-char (input results-instance query-object)
   (let ((previous-search (search-string query-object)))
@@ -145,7 +153,7 @@
       ;; C-r
       ((char= input #\Dc2) (previous-match results-instance))
       ;; Tab
-      ((char= input #\Tab) (auto-fill-query-string))
+      ((char= input #\Tab) (auto-fill-query-string query-object results-instance))
       ;; Finally
       (t
        (progn
@@ -154,9 +162,9 @@
                     (length (string input))))))))
 
 (defun main-1 (argv)
-  ;; (let ((swank::*loopback-interface* "127.0.0.1") (port 4005))
-  ;;   (swank-loader:init)
-  ;;   (swank:create-server :port port ))
+  (let ((swank::*loopback-interface* "127.0.0.1") (port 4005))
+    ;; (swank-loader:init)
+    (swank:create-server :port port ))
 
   (defparameter *screen* (cl-charms:initscr))
   (defparameter *query-window* (make-query-window))
@@ -171,18 +179,18 @@
         (results-instance *results-instance*))
 
     (loop while t do (progn
+                       (process-query query-object results-instance)
                        (draw-everything results-instance query-object screen query-window results-window)
-                       (poll-for-input results-instance query-object)
-                       (process-query query-object results-instance))
+                       (poll-for-input results-instance query-object))
        finally (cl-charms:endwin))))
-
-;; (defun main (argv)
-;;   (handler-case (main-1 argv)
-;;     (sb-sys:interactive-interrupt ()
-;;       (clean-up-and-quit))))
 
 (defun main (argv)
   (handler-case (main-1 argv)
-    (condition (se)
-      (cl-charms:endwin)
-      (format t "~s~%" se))))
+    (sb-sys:interactive-interrupt ()
+      (clean-up-and-quit))))
+
+;; (defun main (argv)
+;;   (handler-case (main-1 argv)
+;;     (condition (se)
+;;       (cl-charms:endwin)
+;;       (format t "~s~%" se))))

@@ -5,8 +5,9 @@ all: clean manifest
 	buildapp --output "$(TARGET)" \
 		--manifest-file quicklisp-manifest.txt \
 		--load-system $(SYSTEM) \
-		--eval '(sb-ext:disable-debugger)' \
 		--entry "$(SYSTEM):main"
+		# --eval '(sb-ext:disable-debugger)' \
+
 
 
 

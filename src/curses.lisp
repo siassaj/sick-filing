@@ -39,7 +39,7 @@
        for i from 0 to (- (length list) 1)
        do (progn
             (cl-charms:wmove win (+ i 1) 2)
-            (cl-charms:waddstr win (elt list i))))))
+            (cl-charms:waddstr win (relative-path (nth i list)))))))
 
 (defun draw-everything (results-instance query-object main-window query-window results-window)
   (clear-windows main-window results-window query-window)
@@ -66,6 +66,9 @@
 
 (defun cur-y ()
   *cursor-y*)
+
+(defun set-cur-y (num)
+  (setf *cursor-y* num))
 
 (defun inc-cur-y (max &optional num)
   (if (< *cursor-y* max)

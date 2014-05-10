@@ -29,11 +29,11 @@ Returns every word after the last / in query string, using spaces as delimiters.
   "Return a list of match objects representing each element in the list ITEMS that matches the string QUERY.
 
 One or more matcher functions may be used, and a correlation is given to each match"
-   (let ((prefix-regex (format nil "^~a.*" query))
-         (full-regex (format nil ".*~a.*" query))
+   (let ((prefix-regex (format nil "(?i)^~a.*" query))
+         (full-regex (format nil "(?i).*~a.*" query))
          (fuzzy-regex "")
          matches)
-     (setf fuzzy-regex (concatenate 'string fuzzy-regex ".*"))
+     (setf fuzzy-regex (concatenate 'string fuzzy-regex "(?i).*"))
      (loop for character across query
         counting t into counter
         do (setf fuzzy-regex (concatenate 'string fuzzy-regex
@@ -55,11 +55,11 @@ One or more matcher functions may be used, and a correlation is given to each ma
 
 (defun collate-matching-items (query-terms items)
   "Call match on each query-term and the list of items, collecting the results into a list"
-  (let ((matches #()))
+  (let ((matches '()))
     (if query-terms
         (loop for term in query-terms
-           do (setf matches (concatenate 'vector (match-items term items) matches)))
-      (setf matches  (concatenate 'vector items matches)))
+           do (setf matches (concatenate 'list (match-items term items) matches)))
+      (setf matches  (concatenate 'list items matches)))
 
     (remove-duplicates matches)))
 
@@ -97,7 +97,7 @@ Each time it's called it will return multiple values MATCHES, DIR, CURRENT-DEPTH
 
 When QUERY-STRING changes it will reset it's directory stack and begin from the top again.
 
-MATCHES is a list of mathing Item instances
+MATCHES is an array of mathing Item instances
 DIR is the current directory, since it may have entered a new directory to match items
 CURRENT-DEPTH is how many levels deeper than the initial directory depth.
 NUM-DIRS is the number of directories left to search at the current tree depth"
