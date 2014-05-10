@@ -1,24 +1,9 @@
-#!/usr/bin/sbcl --script
-(load "~/.sbclrc")
-
-(require :quicklisp)
-(ql:quickload "cl-charms")
-
-(load "~/.emacs.d/vendor/slime/swank-loader")
-;; (load "process-matches.lisp")
-(swank-loader:init)
-
-;; (require :swank)
+(in-package :sick-filing)
 
 (defvar *emacs-port* 4005)
-(defparameter *arguments* (cdr *posix-argv*))
 (defparameter *delimiters* '(" " "/" "\\"))
-
-(defun start-swank ()
-  (setf swank:*configure-emacs-indentation* nil
-        swank::*enable-event-history* nil
-        swank:*log-events* t)
-  (swank:create-server :port *emacs-port* :dont-close t))
+(defparameter *results-list* nil)
+(defparameter *cursor-y* 0)
 
 (defclass query ()
   ((search-string :initform ""
@@ -35,24 +20,6 @@
       (setf (slot-value query-instance 'search-string) new-string)
       (setf (slot-value query-instance 'changedp) t))))
 
-(defparameter *results-list* '("some/result/one" "some/result/two"))
-
-(defparameter *cursor-y* 0)
-
-(defun concat-list (list &optional spacer)
-  (format nil (concatenate 'string "~{~a~^" spacer "~}") list))
-
-(defun string-cut-end (string &key keep cut)
-  (cond
-    (keep (subseq string 0 (- keep 1)))
-    (cut (subseq string 0 (- (length string) cut)))))
-
-(defun insert-into (type string sub pos)
-  (let ((end (length string)))
-    (concatenate type (subseq string 0 pos) sub (subseq string pos end))))
-
-(defun kill-string-from (pos string)
-  (subseq string 0 pos))
 
 (defun kill-query-string-from (pos query-object)
   (let ((string (search-string query-object)))
@@ -70,6 +37,7 @@
   (let ((string (search-string query-object)))
     (if  (< pos (length string))
          (let ((subsequence (subseq string (+ 1 pos))))
+
            (+ 1
               pos
               (apply #'min
@@ -251,30 +219,24 @@
 (defun poll-for-input-emacs (query-object)
   (use-input-char #\a query-object))
 
-(defun main ()
+(defun main (argv)
 
-  (defparameter *screen* (cl-charms:initscr))
-  (defparameter *query-window* (make-query-window))
-  (defparameter *results-window* (make-results-window))
-  (defparameter *query-object* (make-instance 'query))
+  ;; (let ((swank::*loopback-interface* "127.0.0.1") (port 4006))
+  ;;   (swank-loader:init)
+  ;;   (swank:create-server :port port ))
 
-  (let ((screen *screen*)
-        (query-window *query-window*)
-        (results-window *results-window*)
-        (query-object *query-object*))
-    (loop while t do (progn
-                       (draw-everything query-object screen query-window results-window)
-                       (poll-for-input query-object)
-                       (process-query query-object))
-       finally (cl-charms:endwin))))
+  ;; (defparameter *screen* (cl-charms:initscr))
+  ;; (defparameter *query-window* (make-query-window))
+  ;; (defparameter *results-window* (make-results-window))
+  ;; (defparameter *query-object* (make-instance 'query))
 
-(let ((swank::*loopback-interface* "127.0.0.1") (port 4006)) (swank:create-server :port port ))
-(setf sb-ext:*invoke-debugger-hook* (or *debugger-hook*))
-(main)
-
-;; (handler-case
-;;     (main)
-;;   (condition (se)
-;;     (progn
-;;       (cl-charms:endwin)
-;;       (start-swank))))
+  (format t "~%~s~%" argv))
+  ;; (let ((screen *screen*)
+  ;;       (query-window *query-window*)
+  ;;       (results-window *results-window*)
+  ;;       (query-object *query-object*))
+  ;;   (loop while t do (progn
+  ;;                      (draw-everything query-object screen query-window results-window)
+  ;;                      (poll-for-input query-object)
+  ;;                      (process-query query-object))
+  ;;      finally (cl-charms:endwin))))
