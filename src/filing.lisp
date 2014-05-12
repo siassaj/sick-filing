@@ -109,7 +109,14 @@
                (namestring pathname))
         (next-match results-instance)))))
 
-(defun select-match (results-instance) nil)
+(defun select-match (results-instance)
+  (let ((path  (path (car (results-list results-instance)))))
+    (with-open-file (file (nth 1 *arguments*)
+                          :direction :output
+                          :if-exists :supersede
+                          :if-does-not-exist :create)
+      (format file "~a"  (cl-fad:pathname-directory-pathname  path))))
+  (clean-up-and-quit))
 
 (defun use-input-char (input results-instance query-object)
   (let ((previous-search (search-string query-object)))
@@ -120,7 +127,7 @@
              (update-search-string query-object (string-cut-end previous-search :cut 1 ))
              (dec-cur-y))))
 
-      ((or (char= input #\Newline) (char= input #\Return)) (select-match))
+      ((or (char= input #\Newline) (char= input #\Return)) (select-match results-instance))
 
       ((char= input #\Esc)
        (let ((unput (grab-input-char)))
@@ -146,8 +153,7 @@
       ;; C-b
       ((char= input #\Stx) (dec-cur-y))
       ;; C-q
-      ((char= input #\Dc1)
-       (clean-up-and-quit))
+      ((char= input #\Dc1) (clean-up-and-quit 1))
       ;; C-s
       ((char= input #\Dc3) (next-match results-instance))
       ;; C-r
@@ -162,15 +168,17 @@
                     (length (string input))))))))
 
 (defun main-1 (argv)
-  (let ((swank::*loopback-interface* "127.0.0.1") (port 4005))
-    ;; (swank-loader:init)
-    (swank:create-server :port port ))
+  ;; (let ((swank::*loopback-interface* "127.0.0.1") (port 4005))
+  ;;   ;; (swank-loader:init)
+  ;;   (swank:create-server :port port ))
 
   (defparameter *screen* (cl-charms:initscr))
   (defparameter *query-window* (make-query-window))
   (defparameter *results-window* (make-results-window))
-  (defparameter *query-object* (make-instance 'query))
+  (defparameter *query-object* (make-instance 'query
+                                              :changedp t))
   (defparameter *results-instance* (make-instance 'results))
+  (defparameter *arguments* argv)
 
   (let ((screen *screen*)
         (query-window *query-window*)
@@ -187,7 +195,7 @@
 (defun main (argv)
   (handler-case (main-1 argv)
     (sb-sys:interactive-interrupt ()
-      (clean-up-and-quit))))
+      (clean-up-and-quit 1))))
 
 ;; (defun main (argv)
 ;;   (handler-case (main-1 argv)

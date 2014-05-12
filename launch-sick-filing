@@ -1,0 +1,7 @@
+Create a symlink of sick-filing.bin in a $PATH dir. Make sure you call the symlink sick-filing.bin.
+
+Add the following to your ~/.bashrc
+function filing() {
+    TFILE="/tmp/sick-filing.$$.tmp"
+    sick-filing.bin $TFILE && cd `cat $TFILE`
+}
