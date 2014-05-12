@@ -60,9 +60,9 @@
     (cl-charms:echo)
     (code-char charcode)))
 
-(defun clean-up-and-quit ()
+(defun clean-up-and-quit (&optional unix-status)
   (cl-charms:endwin)
-  (cl-user::quit))
+  (cl-user::quit :unix-status (or unix-status 0) ))
 
 (defun cur-y ()
   *cursor-y*)

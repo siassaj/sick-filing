@@ -1,4 +1,4 @@
-TARGET		= filing
+TARGET		= sick-filing.bin
 SYSTEM		= sick-filing
 
 all: clean manifest

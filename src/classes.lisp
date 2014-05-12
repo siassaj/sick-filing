@@ -1,9 +1,11 @@
 (in-package :sick-filing)
 
 (defclass query ()
-  ((search-string :initform ""
+  ((search-string :initarg :search-string
+                  :initform ""
                   :reader search-string)
-   (changedp :initform nil
+   (changedp :initarg :changedp
+             :initform nil
              :reader changedp)))
 
 (defclass results ()
@@ -20,7 +22,10 @@
                   :accessor relative-path
                   :documentation "The relative path of the item of type string")
    (correlation :initarg :correlation
-                :initform 0
+                :initform 1
                 :accessor correlation
                 :documentation "How correlated the match is to the original query, low numbers = more correlated"))
   (:documentation "The object spawned for each item found in the filesystem"))
+
+(defun strengthen-correlation (item &optional amount)
+  (setf (correlation item) (* (+ 1 amount) (correlation item))))

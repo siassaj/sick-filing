@@ -25,6 +25,9 @@ Returns every word after the last / in query string, using spaces as delimiters.
     (loop for str in (cl-utilities:split-sequence #\Space terms-string)
        when (> (length str) 0) collect str)))
 
+(defun strengthen-correlation (item &optional amount)
+  (setf (correlation item) (* (+ 1 amount) (correlation item))))
+
 (defun match-items (query items)
   "Return a list of match objects representing each element in the list ITEMS that matches the string QUERY.
 
@@ -43,13 +46,13 @@ One or more matcher functions may be used, and a correlation is given to each ma
    (loop for item in items
       do (cond
            ((cl-ppcre:scan prefix-regex (relative-path item))
-            (setf (correlation item) 1)
+            (strengthen-correlation item 1)
             (push item matches))
            ((cl-ppcre:scan full-regex (relative-path item))
-            (setf (correlation item) 2)
+            (strengthen-correlation item 0.5)
             (push item matches))
            ((cl-ppcre:scan fuzzy-regex (relative-path item))
-            (setf (correlation item) 3)
+            (strengthen-correlation item 0.25)
             (push item matches))))
    matches))
 
@@ -58,9 +61,12 @@ One or more matcher functions may be used, and a correlation is given to each ma
   (let ((matches '()))
     (if query-terms
         (loop for term in query-terms
-           do (setf matches (concatenate 'list (match-items term items) matches)))
+           counting term into i
+           do (let ((term-matches (match-items term items)))
+                 (dolist (match term-matches)
+                   (setf (correlation match) (* (+ 1 i) (correlation match))))
+                 (setf matches (concatenate 'list term-matches matches)))             )
       (setf matches  (concatenate 'list items matches)))
-
     (remove-duplicates matches)))
 
 (defun build-items (dir raw-paths)
@@ -138,14 +144,14 @@ NUM-DIRS is the number of directories left to search at the current tree depth"
 
 (defun sort-matches (matches)
   "Sort matches by their correlation primarily string value secondarily"
-  (stable-sort matches #'item>))
+  (stable-sort matches #'item<))
 
-(defun item> (x y)
+(defun item< (x y)
   (cond
-    ((> (correlation x) (correlation y)) nil) ; smaller is better
-    ((< (correlation x) (correlation y)) t)
-    ((= (correlation x) (correlation y))
-     (if (string< (relative-path x) (relative-path y))
+    ((> (correlation y) (correlation x)) nil)
+    ((< (correlation y) (correlation x)) t)
+    ((= (correlation y) (correlation x))
+     (if (string< (relative-path y) (relative-path x))
          t
        nil))))
 
