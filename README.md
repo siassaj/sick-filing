@@ -4,6 +4,25 @@ Filing things on a hard drive is not affectively easy. 100% of the time I've see
 n
 Recently there has been talk of tagging filing systems, which sound awesome but are non trivial to use. Filing should be trivial.
 
+## Installation
+
+Create a symlink of sick-filing.bin in a $PATH dir. Make sure you call the symlink sick-filing.bin.
+
+Add the following to your ```~/.bashrc```
+
+```bash
+function filing() {
+    TFILE="/tmp/sick-filing.$$.tmp"
+    sick-filing.bin $TFILE && cd `cat $TFILE`
+}
+```
+
+Then you can call ```$ filing```. I have made an alias to sfi, it's shorter.
+
+
+## Things I'd like to say
+
+Continuing, our options are:
 
 ### Option 1 Deep directory nesting
 
