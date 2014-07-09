@@ -1,7 +1,7 @@
 # Sick Filing
 
 Filing things on a hard drive is not affectively easy. 100% of the time I've seen people use heazily nested directories, no organisation at all and a sickening combination of the two.
-n
+
 Recently there has been talk of tagging filing systems, which sound awesome but are non trivial to use. Filing should be trivial.
 
 ## Installation
@@ -143,7 +143,7 @@ No;
 
 ### Just to make things more arcane
 
-It's written in SBCL Common Lisp.
+It's written in Common Lisp, compiled with SBCL. It's not intended to be SBCL specific code, portability is güd. I don't know if this version is portable. Yet.
 
 # License
 
