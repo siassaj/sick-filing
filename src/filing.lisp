@@ -34,7 +34,7 @@
 
 (defun kill-query-string-from (pos query-object)
   (let ((string (search-string query-object)))
-    (update-search-string query-object (kill-string-from pos string))))
+    (update-search-string query-object (string-cut-end string :keep (+ 1 pos)))))
 
 (defun position-of-nearest-delim-between-0-and-point (pos query-object)
   (let* ((string (search-string query-object))
