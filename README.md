@@ -1,6 +1,6 @@
 # Sick Filing
 
-Filing things on a hard drive is not affectively easy. 100% of the time I've seen people use heazily nested directories, no organisation at all and a sickening combination of the two.
+Filing things on a hard drive is not affectively easy. 100% of the time I've seen people use heavily nested directories, no organisation at all and a sickening combination of the two.
 
 Recently there has been talk of tagging filing systems, which sound awesome but are non trivial to use. Filing should be trivial.
 
@@ -34,7 +34,7 @@ Consider non educational dvds and ebooks.
 
 What about ```Media/DVDS/Movies```. Is a David Attenborough movie educational or entertainment???
 
-Category hell ensues and no one can ever realiably go to someone elses pc (Much less their own) and find something simply without having to whip out a search tool. And then the capabilities of the search tool often lack luster.
+Category hell ensues and no one can ever reliably go to someone else's pc (Much less their own) and find something simply without having to whip out a search tool. And then the capabilities of the search tool often lack luster.
 
 SO I wrote... another search tool... but this one is nice, it's like IDO-mode in emacs (kinda, it's still a baby).
 
